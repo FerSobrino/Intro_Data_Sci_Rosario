@@ -12,4 +12,4 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 [Ejemplo básico en R (Rmd)](/Redes_Neuronales/CodigoRNN.Rmd)
 
-[Ejemplo básico en R (html)](/Redes_Neuronales/CodigoRNN.html)
+[Ejemplo básico en R (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/CodigoRNN.html)
