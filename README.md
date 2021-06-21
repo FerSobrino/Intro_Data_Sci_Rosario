@@ -10,4 +10,6 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 [Redes Neuronales (slides)](/Redes_Neuronales/RN.pdf)
 
-[Ejemplo básico en R (Rdm)](/Redes_Neuronales/CodigoRNN.html)
+[Ejemplo básico en R (Rmd)](/Redes_Neuronales/CodigoRNN.Rmd)
+
+[Ejemplo básico en R (html)](/Redes_Neuronales/CodigoRNN.html)
