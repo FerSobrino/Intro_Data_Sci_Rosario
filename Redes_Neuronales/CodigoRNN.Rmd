@@ -1,0 +1,132 @@
+---
+title: "Redes Neuronales"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tensorflow)
+library(keras)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Clasificar datos escritos a mano 
+
+#### Pre-requisitos: 
+
+Vamos a necesitar la siguientes librerias. Ojo se instalan de manera distinta que la mayoría de los paquetes en r. (Recuerden también cargar tidyverse para la manipulación de los datos)
+
+```{r, eval = FALSE, echo = TRUE, message=FALSE, warning=FALSE}
+install.packages("tensorflow")
+library(tensorflow)
+install_tensorflow()
+install.packages("keras")
+library(keras)
+install_keras()
+```
+Qué son estas dos librerias? 
+
+* Tensorflow: libreria open source para modelos de ML [info](https://tensorflow.rstudio.com/)
+* Keras: API de redes neuronales [info](https://keras.rstudio.com/)
+
+#### Datos 
+Los datos los pueden encontrar acá en formato .cvs [click aqui](https://pjreddie.com/projects/mnist-in-csv/). Useremos solo los datos de entrenamiento así que descarguen el train set. 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+raw_data <- read_csv("mnist_train.csv",col_names = FALSE)
+dim(raw_data)
+head(raw_data)
+```
+Esta base de datos contiene 60,000 ejemplos de números escritos a mano con 785 columnas. La primera columna es la clasificación del dígito un número entre 0 y 9. Las otras 784 columnas representa la escala de grises de cada uno de los pixeles en las imágenes. Las imagenes son de 28x28 y la escala de grises es un numero entre 0 y 1 donde 0 es que el pixel es todo blanco y 1 que es todo negro. 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+barplot(table(raw_data[,1]), col=rainbow(10, 0.5), main="n Digits in Train")
+```
+
+Hay alrededor de 5500 observaciones para cada uno de los dígitos. Para ver como se ven los dígitos escritos vamos a graficarlos 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+pixels_gathered <- raw_data %>%
+  head(10000) %>%
+  rename(label = X1) %>%
+  mutate(instance = row_number()) %>%
+  gather(pixel, value, -label, -instance) %>%
+  tidyr::extract(pixel, "pixel", "(\\d+)", convert = TRUE) %>%
+  mutate(pixel = pixel - 2,
+         x = pixel %% 28,
+         y = 28 - pixel %/% 28)
+pixels_gathered %>%
+  filter(instance <= 12) %>%
+  ggplot(aes(x, y, fill = value)) +
+  geom_tile() +
+  facet_wrap(~ instance + label)
+```
+
+#### Preparar los datos
+
+Vamos a dividir nuestros datos en 2 conjuntos distintos: entrenamiento y prueba. El conjunto de entrenamiento es el 80% del nuestra base original y el 20% restante es el conjunto de prueba. Vamos a dividir cada uno de estos conjuntos es y y x. Donde y contiene la clasificación del dígito y x es el valor para cada uno de los pixeles. 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+idx <- sample(seq(1, 2), size = nrow(raw_data), replace = TRUE, prob = c(.8, .2))
+train <- raw_data[idx == 1,]
+test <- raw_data[idx == 2,]
+train_x <- train %>% select(-X1) %>% as.matrix()
+train_y <- train %>% select(X1) %>% as.matrix()
+test_x <- test %>% select(-X1) %>% as.matrix()
+test_y <- test %>% select(X1) %>% as.matrix()
+```
+
+Necesitamos transformar las y en variables categóricas, en la base original la y es el dígito, acá transformamos ese dígito en un vector con un 1 en el valor del número. Un 1 es el  vector (0,1,0,0,0,0,0,0,0,0,0)^T
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+train_y <- to_categorical(train_y,10)
+test_y <- to_categorical(test_y,10)
+```
+
+
+#### Definir y configurar el modelo 
+
+Para definir el modelo usamos el paquete keras. Definimos una red neuronal secuencial con una capa de entrada con 754 nodos, una capa intermedia con 15 nodos cada una (como en las slides) 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 15, activation = "sigmoid", input_shape = c(784)) %>%
+  layer_dense(units = 10, activation = "sigmoid")
+summary(model)
+```
+
+Antes de entrenar el modelo tenemos que especificar la función de costos, la métrica para evaluar la red y el algoritmo para optimizar. En este caso utilizaremos cross-entropy, precisión y descenso de gradiente estocástico. 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+
+#### Entrenar el modelo 
+
+Utilizar fit para estimar los parámetros de la red. Aquí definimos el tamaño de los mini-batches y la cantidades de ephocs que queremos correr 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+fit_digits <- model %>% fit(
+  train_x, train_y, 
+  epochs = 100, 
+  batch_size = 128,
+  validation_split = 0.2,
+  verbose=0
+)
+```
+
+Ya que estimamos todos los parámetros podemos evaluar como lo hizo el modelo 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+plot(fit_digits)
+```
+
+
+Este es el código básico, ahora podemos evaluar que pasa si cambiamos cosas como la cantidad de ephocs, agregamos métodos de regularización, agregamos nodos a nuestra capa intermedia o agregamos más capas. 
+
+
