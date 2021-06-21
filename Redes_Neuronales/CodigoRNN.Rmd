@@ -1,8 +1,7 @@
 ---
 title: "Redes Neuronales"
-output:
-  html_document:
-    df_print: paged
+output: rmarkdown::html_vignette
+
 ---
 
 ```{r setup, include=FALSE}
