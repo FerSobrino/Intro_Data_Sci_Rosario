@@ -1,0 +1,527 @@
+---
+title: "Redes Neuronales 2.0"
+author: "Fernanda Sobrino"
+date: "6/21/2021"
+classoption: xcolor=dvipsnames 
+output: 
+  beamer_presentation:
+    toc: true
+header-includes:
+  \usecolortheme[named=Plum]{structure}
+urlcolor: Plum
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(keras)
+library(tensorflow)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# \textcolor{Plum}{Perceptron}
+
+## Representar la función lógica OR con una red neuronal 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("PerceptronMano.png")
+```
+
+## Función lógica OR 
+
+\begin{center}
+\begin{tabular}{ |c|c|c| } 
+\hline 
+$X_1$ & $X_2$ & Y\\
+ \hline
+ 0 & 0 & 0 \\ 
+ 0 & 1 & 1 \\ 
+ 1 & 0 & 1 \\
+ 1 & 1 & 1 \\
+ \hline
+\end{tabular}
+\end{center}
+
+## Función lógica OR 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("OR2.png")
+```
+
+## Actualizamos los pesos
+* actualizar pesos usando: 
+    * tasa de aprendizaje: $\eta = 0.5$
+    * $\epsilon = actual - prediction = 1 -0 = 1$
+    * nuevo peso dado por $w'_i = w_i + \eta*\epsilon$
+    * $w_i = 0.5 + 0.5*(1) = 1$ 
+* $\implies$ $x_i = 1, x_j =0$ ahora $x \cdot w + b = .5 > 0 \implies output = 1$ \textcolor{green}{Correcto} 
+* funciona en los otros dos casos? 
+    * $x_i = 1$, $x \cdot w + b  = 1.5 >0 \implies 1$  \textcolor{green}{Correcto}
+    * $x_i = 0$, $x \cdot w + b  = -0.5 \leq 0 \implies 0$ \textcolor{green}{Correcto}
+
+
+## Por qué necesitamos redes de más de un nodo y más de una capa? 
+Problema, encontrar un red neuronal que describa lo siguiente: 
+\begin{center}
+\begin{tabular}{ |c|c|c| } 
+\hline 
+$X_1$ & $X_2$ & Y\\
+ \hline
+ 0 & 0 & 1 \\ 
+ 0 & 1 & 0 \\ 
+ 1 & 0 & 0 \\
+ 1 & 1 & 1 \\
+ \hline
+\end{tabular}
+\end{center}
+
+
+## Por qué necesitamos redes de más de un nodo y más de una capa? 
+
+* No va a existir una red de un solo nodo capaz de describir lo anterior 
+* Por qué?
+
+
+## Por qué necesitamos redes de más de un nodo y más de una capa? 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("graphNOR.png")
+```
+
+## Solución 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("XNOR.png")
+```
+
+## Pesos
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("XNOR.png")
+```
+
+## Estos pesos nos dan los siguientes resultados 
+\begin{center}
+\begin{tabular}{ |c|c|c|c|c| } 
+\hline 
+$x_1$ & $x_2$ & $h_1$ & $h_2$ & $\hat{y}$\\
+ \hline
+ 0 & 0 & 0 & 1 & 0 \\ 
+ 0 & 1 & 0 & 0 & 0\\ 
+ 1 & 0 & 0 & 0 & 0\\
+ 1 & 1 & 1 & 0 & 1\\
+ \hline
+\end{tabular}
+\end{center}
+
+
+## Intuición 
+
+* las capas intermedias calculan relaciones mas complejas 
+* ayudan a transformar el problema en pedazos que sean linearmente separables 
+* entre más profunda sea una red puede obtener(develar) relaciones mas y mas complejas 
+
+# \textcolor{Plum}{Ejemplo Backpropagation}
+
+## Red Neuronal 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRed.png")
+```
+
+## Datos 
+* supongamos que tenemos un solo ejemplo $x_1 = 2, x_2= 3$ y $out = 1$
+
+* inicializamos los pesos como $w_{11} = .11 \quad w_{12} = .12 \quad w_{21} = .21 \quad w_{22} = .08$ y $w_5 = .85 \quad w_6 = .15$
+
+* para este ejemplo la función de activación es solo $w \cdot x$
+
+## Pase hacia adelante (feed forward)
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRed2.png")
+```
+
+
+## Error de la última capa 
+* Asumimos función de costos cuadrática 
+$$ C = \frac{1}{2}(predicción - real)^2 = \frac{1}{2}(0.191 -1)^2 = 0.327$$
+
+
+
+## Cómo reducimos ese error? 
+
+* mejorando la predicción 
+
+$$ predicción = out $$
+$$ predicción  = h_1*w_5 + h_2*w_6$$
+$$predicción = (x_1*w_{11} + x_2*w_{21})*w_5 + (x_1*w_{12} + x_2*w_{22})*w_6$$
+
+
+## Backpropagation (propagación hacia atrás)
+
+* necesitamos cambiar los pesos de tal manera que nuestro costo se reduzca 
+* como hacemos esto? Gradient descent 
+
+$$w_j^{*} = w_j - a \frac{\partial C}{\partial w_j}$$
+
+## Backpropagation (propagación hacia atrás)
+
+* si queremos actualizar $w_5$ necesitaremos $\frac{\partial C}{\partial w_5}$
+* acá podemos hacero a mano 
+
+$$\frac{\partial C}{\partial w_5} = \frac{\partial C}{\partial predicción} \frac{\partial predicción}{\partial w_5}$$
+
+* Calculamos estas dos parciales por separado 
+
+$$\frac{\partial C}{\partial predicción} = (predicción - real)$$
+
+## Backpropagation (propagación hacia atrás)
+
+$$\frac{\partial predicción}{\partial w_5} = x_1*w_{11} + x_2*w_{21} = h_1$$
+* Entonces 
+
+$$\frac{\partial C}{\partial w_5} = (predicción - actual) * h_2 = \Delta h_2$$
+
+## Cómo actualizamos $w_5$
+
+* $w_5^* = w_5 -a\Delta h_1$
+* similarmente $w_6^* = w_6 -a\Delta h_2$
+
+
+## Y entonces como actualizamos pesos en las capas anteriores? 
+
+$$\frac{\partial C}{\partial w_{11}} = \frac{\partial C}{\partial predicción} \frac{\partial predicción}{\partial h_1} \frac{\partial h_1}{\partial w_{11}}$$
+* Otra vez calculemos todas estas parciales por separado 
+
+
+$$\frac{\partial C}{\partial predicción} = (predicción - real)$$
+
+$$\frac{\partial predicción}{\partial h_1} = w_5$$
+$$\frac{\partial h_1}{\partial w_{11}} = x_1$$
+
+
+## Juntamos todo 
+
+$$\frac{\partial C}{\partial w_{11}} = (predicción - real)w_5x_{11}  = \Delta w_5x_{11}$$
+* las formulas para los otros cuatro pesos van a ser iguales 
+
+## Formulas para actualizar los pesos 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRN3.png")
+```
+
+
+## Calculamos los nuevos pesos
+* asumimos que la tasa de aprendizaje es $a = 0.05$ 
+* $\Delta = predicción - real = -0.809$
+
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRN4.png")
+```
+
+
+## Mejora nuestra predicción? 
+* un poco 
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRN5.png")
+```
+
+
+## Preguntas: 
+
+1. Cuáles son los pesos y el error si iteramos una vez mas? 
+1. Qué pasa si cambiamos la tasa de aprendizaje? 
+1. Qué pasa si agregamos una función de activación distinta a $f(z) = z$ ? 
+
+## Otra iteración: 
+* tasa de aprendizaje $a = 0.05$
+* $\Delta = predicción - real = .26-1 = -0.74$
+* podemos usar las mismas fórmulas que antes 
+
+## Otra iteración: pesos 
+$\left[\begin{array}{cc}
+w_5^*\\
+w_6^*
+\end{array}\right] = 
+\left[\begin{array}{cc}
+.17\\
+.17
+\end{array}\right] - (0.05)(-.74)
+\left[\begin{array}{cc}
+0.92\\
+0.56
+\end{array}\right] = 
+\left[\begin{array}{cc}
+.20\\
+.19
+\end{array}\right]$
+
+$\left[\begin{array}{ccc}
+w_{11} & w_{12}\\
+w_{21} & w_{22}
+\end{array}\right] = 
+\left[\begin{array}{ccc}
+0.12 & 0.13\\
+0.23 & 0.10
+\end{array}\right]  -(0.05)(-.74)
+\left[\begin{array}{cc}
+2\\
+3
+\end{array}\right] [.17 .17] = 
+\left[\begin{array}{ccc}
+0.13 & 0.14\\
+0.24 & 0.11
+\end{array}\right]$
+
+## Otra iteración: predicción
+$[2 \quad 3]\left[\begin{array}{ccc}
+.13 & .14\\
+.24 & .11
+\end{array}\right] = [.98 \quad .61]
+\left[\begin{array}{cc}
+.20\\
+.19
+\end{array}\right] = .31$
+
+
+
+## Cambiar la tasa de aprendizaje: 
+* $a = 0.25$ 
+
+$\left[\begin{array}{cc}
+w_5^*\\
+w_6^*
+\end{array}\right] = 
+\left[\begin{array}{cc}
+.14\\
+.15
+\end{array}\right] - (.25)(-.809)
+\left[\begin{array}{cc}
+0.85\\
+0.48
+\end{array}\right] = 
+\left[\begin{array}{cc}
+.31\\
+.23
+\end{array}\right]$
+
+$\left[\begin{array}{ccc}
+w_{11} & w_{12}\\
+w_{21} & w_{22}
+\end{array}\right] = 
+\left[\begin{array}{ccc}
+0.11 & 0.12\\
+0.21 & 0.08
+\end{array}\right]  -(.25)(-.809)
+\left[\begin{array}{cc}
+2\\
+3
+\end{array}\right] [.14 \quad .15] = 
+\left[\begin{array}{ccc}
+0.16 & 0.18\\
+0.29 & 0.17
+\end{array}\right]$
+
+* la nueva estimación es $0.569$
+
+## Cambiar la función de activación
+```{r, echo = FALSE, out.width = "100%", fig.align = "center"}
+knitr::include_graphics("BabyRed.png")
+```
+
+## Feed forward con Sigmoid function 
+
+* $f(z) = \frac{1}{1 + e^{-z}}$
+
+```{r, echo = FALSE, out.width = "80%", fig.align = "center"}
+knitr::include_graphics("BabySig.png")
+```
+
+
+## Como hacemos la propagación hacia atras? 
+* Error en la última capa: $C = \frac{1}{2}(.45-1)^2 =  0.15125$
+$$predicción = \sigma(h_1*w_5 + h_2*w_6)$$
+$$predicción = \sigma(\sigma(x_1w_{11} + x_2w_{21})*w_5 + \sigma(x_1w_{12} + x_2w_{22})*w_6)$$
+
+## Backpropagation 
+
+$$\frac{\partial C}{\partial w_5} = \frac{\partial C}{\partial predicción} \frac{\partial predicción}{\partial w_5}$$
+
+$$\frac{\partial predicción}{\partial w_5} = h_1*\sigma'(h_1w_5+h_2w_2) = \frac{h1e^{-(h_1w_5+h_2w_2)}}{(1+e^{-(h_1w_5+h_2w_2)})^2}$$
+* el concepto es el mismo solo tenemos que cargar el término $\sigma'(z)$
+
+
+# \textcolor{Plum}{Cómo escribimos esto en R}
+
+## Propagación hacia adelante 
+* combinación lineal de los inputs de entrada y los pesos 
+* $z_1 = X\cdot W_1 = [1 \quad x]W_1$
+* aplicamos la función de activación 
+* $h = \sigma(z_1)$
+* capa de salida : $z_2 = HW_2 = [1 \quad h]W_2$
+* función de activación $\hat{y} = \sigma(z_2)$
+* entonces 
+
+$$\hat{y} = \sigma(HW_2) = \sigma([1 \quad \sigma(XW_1)]W_2)$$
+
+## Propagación hacia adelante 
+```{r, eval = TRUE, echo = TRUE}
+sigmoid <- function(x){
+  return(1/(1+exp(-x)))
+}
+
+feedforward <- function(x,w1,w2){
+  z1 <- cbind(1,x) %*% w1 
+  h <- sigmoid(z1)
+  z2 <- cbind(1,h) %*% w2
+  list(output = sigmoid(z2), h = h)
+}
+```
+
+
+## Propagación hacia atras 
+ $$C = \frac{1}{n} \sum_n (\hat{y} - y)^2$$
+Gradient descent implica que 
+$$W^* = W -a\nabla C(W)$$
+$$\frac{\partial C}{\partial W_2} = \frac{\partial C}{\partial \hat{y}}\frac{\partial \hat{y}}{\partial W_2}$$
+Donde: 
+    $$\frac{\partial C}{\partial \hat{y}} = 2(\hat{y} - y)$$
+    $$\frac{\partial \hat{y}}{\partial W_2} = H^T\sigma(HW_2)(1-\sigma(HW_2) = H^T\hat{y}(1-\hat{y})$$
+Nota:  $$\sigma'(z) = \sigma(z)(1-\sigma(z))$$
+
+
+## Propagación hacia atras 
+$$\frac{\partial C}{\partial W_1} = \frac{\partial C}{\partial \hat{y}}\frac{\partial \hat{y}}{\partial H}\frac{\partial H}{\partial W_1}$$
+$$\frac{\partial \hat{y}}{\partial H} = \sigma'(HW_2)W_2^T = \hat{y}(1 - \hat{y})W_2^T$$
+$$\frac{\partial H}{\partial W_1} = X^T[0 \quad \sigma(XW_1)(1-\sigma(XW_1))]$$
+
+## Propagación hacia atras 
+```{r, eval = TRUE, echo = TRUE}
+backpropagate <- function(x,y,y_hat,w1,w2,h,a){
+  dw2 <- 2*t(cbind(1,h)) %*% (y_hat*(1 - y_hat)*(y_hat - y))
+  dh <- (y_hat-y) %*% t(w2[-1, drop = FALSE])
+  dw1 <- t(cbind(1,x)) %*% (h*(1-h)*dh)
+  w1 <- w1 - a*dw1
+  w2 <- w2 - a*dw2
+  list(w1 = w1 , w2 = w2)
+}
+```
+
+
+## Aprendizaje 
+```{r, eval = TRUE, echo = TRUE}
+learn <- function(x, y , hidden = 5, a = 0.01, iterations = 10000){
+  d <- ncol(x) + 1
+  w1 <- matrix(rnorm(d*hidden),d,hidden)
+  w2 <- as.matrix(rnorm(hidden+1))
+  for (i in 1:iterations){
+    ff <- feedforward(x,w1,w2)
+    bp <- backpropagate(x,y,
+                        y_hat = ff$output,
+                        w1,w2,
+                        h = ff$h, a = a)
+    w1 <- bp$w1
+    w2 <- bp$w2
+  }
+  list(output = ff$output , w1 = w1, w2 = w2)
+}
+```
+
+
+## Vamos a probar nuestra red
+* Datos : fotos de billetes clasificado como falsos o no dependiendo de la varianza, skewness, curtosis y entropía de la transformación de Wavelnet de la imagen.
+```{r, echo = FALSE, out.width = "60%", fig.align = "center"}
+knitr::include_graphics("Transform.png")
+```
+
+## Vamos a probar nuestra red
+* Datos: estan en el repo de la clase 
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+bank <- read_csv('banknotes.txt')
+head(bank)
+```
+
+## Probar nuestra red
+```{r, eval = TRUE, echo = TRUE}
+x <- data.matrix(bank[,c("variance","entropy")])
+y <- as.numeric(bank$classification)
+nnet5 <- learn(x,y, hidden = 5, iterations = 10000)
+```
+
+* cómo calculamos que tan bien lo hizo? 
+```{r, eval = TRUE, echo = TRUE}
+mean((nnet5$output > .5) == y) 
+```
+
+## Cómo se ven nuestros datos graficamente 
+```{r, eval = TRUE, echo = FALSE, out.width = "100%", fig.align = "center"}
+ggplot(bank) + geom_point(aes(variance, entropy, colour = as.factor(classification)))
+```
+
+## Dibujando las fronteras de decisión 
+```{r, eval = TRUE, echo = FALSE, out.width = "100%", fig.align = "center"}
+grid <- expand.grid(x1 = seq(min(bank$variance) - 1,
+                             max(bank$variance) + 1,
+                             by = .25),
+                    x2 = seq(min(bank$entropy) - 1,
+                             max(bank$entropy) + 1,
+                             by = .25))
+ff_grid <- feedforward(x = data.matrix(grid[, c('x1', 'x2')]),
+                       w1 = nnet5$w1,
+                       w2 = nnet5$w2)
+grid$class <- factor((ff_grid$output > .5) * 1,
+                     labels = c("verdadero","falso"))
+bank$x1 <- bank$variance
+bank$x2 <- bank$entropy
+bank <- bank %>% mutate(class = ifelse(classification == 1, "falso","verdadero"))
+ggplot(bank) + aes(x1, x2, colour = class) +
+  geom_point(data = grid, size = .5) +
+  geom_point() +
+  labs(x = expression(x[1]), y = expression(x[2]))
+```
+
+## Qué le falta a nuestro algorítmo? 
+
+* nunca incluimos explícitamente la función de costos
+* funciona bien en nuestro ejemplo:
+    * que pasa si intentamos usarlo con una base de datos más grande 
+    * con una clasificación que no sea binaria 
+* podemos mejorarlo pero si ya está claro podemos usar una libraria que nos da más flexibilidad que nuestro código escrito a mano 
+
+## Keras y Tensorflow 
+```{r, eval = FALSE, echo = TRUE, out.width = "100%", fig.align = "center"}
+install.packages("tensorflow")
+library(tensorflow)
+install_tensorflow()
+install.packages("keras")
+library(keras)
+install_keras()
+```
+
+## Definimos el modelo usando keras 
+```{r, eval = TRUE, echo = TRUE, out.width = "100%", fig.align = "center"}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 5, activation = "sigmoid", input_shape = c(2)) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+summary(model)
+```
+
+## Declaramos: función de costos, tasa de aprendizaje y métrica  
+* ojo nuestro resultado va a ser distinto al de Keras, por qué?
+```{r, eval = TRUE, echo = TRUE, out.width = "100%", fig.align = "center"}
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+
+## Entrenamos el modelo
+```{r, eval = TRUE, echo = TRUE, out.width = "100%", fig.align = "center"}
+fit_bank <- model %>% fit(
+  x, y, 
+  epochs = 1000, 
+  batch_size = 10,
+  validation_split = 0.2,
+  verbose=0
+)
+```
+
+## Gráfica 
+```{r, eval = TRUE, echo = TRUE, out.width = "100%", fig.align = "center"}
+plot(fit_bank)
+```
