@@ -12,6 +12,10 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 [Redes Neuronales 2.0 (slides)](/Redes_Neuronales/RD2.pdf)
 
+[Redes Neuronales profundas(slides)](/Redes_Neuronales/DeepLearning.pdf)
+
 [Ejemplo básico en R (Rmd)](/Redes_Neuronales/CodigoRNN.Rmd)
 
 [Ejemplo básico en R (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/CodigoRNN.html)
+
+[Red Neuronal desde cero (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/RedBasica.html)
