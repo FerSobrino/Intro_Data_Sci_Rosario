@@ -98,7 +98,7 @@ summary(model)
 Antes de entrenar el modelo tenemos que especificar la función de costos, la métrica para evaluar la red y el algoritmo para optimizar. En este caso utilizaremos cross-entropy, precisión y descenso de gradiente estocástico. 
 ```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
 model %>% compile(
-  loss = 'categorical_crossentropy',
+  loss = 'mean_squared_error',
   optimizer = "sgd",
   metrics = c('accuracy')
 )
@@ -111,10 +111,9 @@ Utilizar fit para estimar los parámetros de la red. Aquí definimos el tamaño 
 ```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
 fit_digits <- model %>% fit(
   train_x, train_y, 
-  epochs = 100, 
+  epochs = 30, 
   batch_size = 128,
-  validation_split = 0.2,
-  verbose=0
+  validation_split = 0.2
 )
 ```
 
@@ -125,7 +124,205 @@ model %>% evaluate(test_x, test_y)
 plot(fit_digits)
 ```
 
+Si queremos encontrar solo las y's estimadas basta con 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+y_hat <- model %>% predict(test_x)
+head(y_hat)
+```
+Si queremos encontrar cual es el dígito que el modelo predice solo necesitamos manipular un poco este objeto. 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+y_hat <- as.data.frame(y_hat)
+y_hat <- y_hat %>%
+  mutate(digit = max.col(y_hat) - 1)
+```
+
+
+
 
 Este es el código básico, ahora podemos evaluar que pasa si cambiamos cosas como la cantidad de ephocs, agregamos métodos de regularización, agregamos nodos a nuestra capa intermedia o agregamos más capas. 
+
+
+#### Cómo podemos mejorar nuestra red?  
+
+##### Cambiando nuestra función de costos
+Solo necesitamos cambiar la función y dejaremos la estructura de la red intacta. 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+Evaluamos como lo hace con respecto a la primera: 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% fit(
+  train_x, train_y, 
+  epochs = 30, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+```
+
+
+##### Cambiando nuestra función de activación en la última capa 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 15, activation = "sigmoid", input_shape = c(784)) %>%
+  layer_dense(units = 10, activation = "softmax")
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+Evaluamos como lo hace con respecto a la primera:
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% fit(
+  train_x, train_y, 
+  epochs = 30, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+```
+
+##### Regularización 
+Vamos a usar dropout en nuestra red original y ver si esto mejora la precisión
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 15, activation = "sigmoid", input_shape = c(784)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 10, activation = "sigmoid")
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+Evaluamos como lo hace nuestra nueva red
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% fit(
+  train_x, train_y, 
+  epochs = 30, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+```
+
+##### Qué pasa si agregamos estos tres cambios juntos? 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 15, activation = "sigmoid", input_shape = c(784)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 10, activation = "softmax")
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+Evaluamos como lo hace nuestra nueva red
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+fit_NN <- model %>% fit(
+  train_x, train_y, 
+  epochs = 30, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+plot(fit_NN)
+```
+
+
+#### Deep Learning 
+
+Hasta ahora nuestra red ha tenido una sola copa intermedia. Agregar más capas es muy sencillo solo necesitamos declararlas en el modelo original. 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model <- keras_model_sequential() 
+model %>%
+  layer_dense(units = 15, activation = 'sigmoid', input_shape = c(784)) %>%
+  layer_dropout(rate = 0.5) %>%
+   layer_dense(units = 128, activation = 'sigmoid') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 10, activation = "softmax")
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = "sgd",
+  metrics = c('accuracy')
+)
+```
+Evaluamos como lo hace nuestra nueva red
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+model %>% fit(
+  train_x, train_y, 
+  epochs = 30, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+model %>% evaluate(train_x, train_y)
+model %>% evaluate(test_x, test_y)
+```
+
+###### CNNs
+Podemos utilizar keras para evaluar redes mas complejas, por ejemplo una CNN. Vamos a modificar un poco nuestros datos para que el paquete pueda leerlos. 
+La CNN en este caso va a conectar cada uno de los pixeles de la capa inicial, recordemos que nuestros datos son de 28x28 pixeles y hasta ahora los tratamos como un vector de 748
+
+```{r,eval = TRUE, echo = TRUE}
+train_x_cnn <- array_reshape(train_x, 
+                               dim = c(nrow(train_x), 28, 28, 1)
+                               )
+test_x_cnn <- array_reshape(test_x, 
+                               dim = c(nrow(test_x), 28, 28, 1)
+                               )
+```
+
+Definimos nuestra red con una sola convolución que recorre regiones de 3x3 nodos, seguida de una capa de pooling seguida por una capa completamente conectada (como todas las que hemos usado hasta ahora) con 15 nodos, la última capa es la de salida, igual que en los casos anteriores es una capa densa con 10 nodos de salida. 
+
+```{r,eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+modelcnn <- keras_model_sequential() %>%
+   layer_conv_2d(filters = 32, kernel_size = c(3,3), activation = 'sigmoid',
+                input_shape = c(28, 28, 1))%>%
+  layer_max_pooling_2d(pool_size = c(3,3)) %>%
+  layer_dropout(rate = 0.25) %>%
+  layer_flatten() %>%
+  layer_dense(units = 15, activation = 'sigmoid') %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 10, activation = 'sigmoid')
+  
+```
+
+
+Definimos la función de costos, el método de optimización y la métrica. 
+```{r,eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+modelcnn %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = "adam",
+  metrics = "accuracy"
+)
+```
+
+Por último entrenamos el modelo:
+
+```{r,eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+CNN <- modelcnn %>% fit(
+  train_x_cnn, train_y, 
+  epochs = 5, 
+  batch_size = 128,
+  validation_split = 0.2
+)
+modelcnn %>% evaluate(train_x_cnn, train_y)
+modelcnn %>% evaluate(test_x_cnn, test_y)
+plot(CNN)
+```
+
 
 

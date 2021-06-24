@@ -1,0 +1,199 @@
+---
+title: "Redes Neuronales "
+output: rmarkdown::html_vignette
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(cowplot)
+library(tensorflow)
+library(keras)
+knitr::opts_chunk$set(error = TRUE)
+```
+
+# Crear una red neuronal desde cero 
+
+#### Pre requisitos: 
+```{r, eval = FALSE, echo = TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(cowplot)
+library(tensorflow)
+library(keras)
+```
+
+Si no han instalado estos paquetes sigan solo sigan `install.packages("paquete")`
+
+#### Cargar y visualizar los datos 
+Usaremos los datos `banknotes.txt` que se encuentran en el repo de la clase. Estos datos contienen fotos de billetes clasificados como falsificaciones o no. Las variables para cada uno de los billetes es la varianza, skewness, curtosis y entropía de la transformación de Walvelnet de la imagen. 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+bank <- read_csv('banknotes.txt')
+dim(bank)
+head(bank)
+```
+
+Visualización de los datos: relación entre la varinaza y la entropia 
+
+```{r, eval = TRUE, echo = TRUE}
+bank$classification <- as.factor(bank$classification)
+ggplot(bank) + geom_point(aes(variance, entropy, colour = classification))
+```
+
+
+#### Dividir nuestros datos en conjunto de entrenamiento y de prueba 
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+idx <- sample(seq(1, 2), size = nrow(bank), replace = TRUE, prob = c(.8, .2))
+train <- bank[idx == 1,]
+test <- bank[idx == 2,]
+x_train <- data.matrix(train[,c("variance","entropy")])
+y_train <- as.numeric(train$classification)
+x_test <- data.matrix(test[,c("variance","entropy")])
+y_test <- as.numeric(test$classification)
+```
+
+Visualización la división de los datos 
+
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+plot1 <- ggplot(train) + geom_bar(aes(classification, fill = classification)) + 
+  theme(legend.position = "none")
+plot2 <- ggplot(test) + geom_bar(aes(classification, fill = classification)) + 
+  theme(legend.position = "none")
+plot_grid(plot1, plot2, labels = "AUTO")
+```
+
+#### Red Neuronal 
+
+Nuestro objetivo es escribir código capaz de resolver una red parecida a esta: 
+```{r, echo = FALSE, out.width = "80%", fig.align = "center"}
+knitr::include_graphics("NNBaby.png")
+```
+
+##### Función de activación 
+Utilizaremos la función sigmoid 
+$$\sigma(z) = \frac{1}{1+e^{-z}}$$
+```{r, eval = TRUE, echo = TRUE}
+sigmoid <- function(x){
+  return(1/(1+exp(-x)))
+}
+```
+
+##### Propagación hacia adelante
+
+1. Empezando con los inputs de la red vamos a calcular el vector de z's de la capa intermedia, donde $W_1 \in  \mathbb{R}^{(d+1)h}$, con $d$ el número de variables de entrada, $+1$ para incluir al bias y $h$ es el número de nodos en la capa intermedia. 
+$$z_1 = XW_1 = [1 \quad x]W_1$$
+1. Aplicamos la función de activación para obtener los nodos de la capa intermedia. 
+$$h = \sigma(z_1)$$
+$$H = [1 \quad h] = [1 \quad \sigma(z_1)] = [1 \quad \sigma(XW_1)]$$
+
+1. Repetimos el mismo proceso pero para la capa de salida. Donde $W_2 \in  \mathbb{R}^{(h+1)(k-1)}$. Donde k es el número de clases en el que queremos clasificar nuestros datos. 
+$$z_2 = HW_2 = [1 \quad h]W_2$$
+$$\hat{y} = \sigma(z_2)$$
+$$\hat{y} = \sigma(HW_2) = \sigma([1 \quad \sigma(X W_2)]W_2)$$
+```{r, eval = TRUE, echo = TRUE}
+feedforward <- function(x,w1,w2){
+  z1 <- cbind(1,x) %*% w1 
+  h <- sigmoid(z1)
+  z2 <- cbind(1,h) %*% w2
+  list(output = sigmoid(z2), h = h)
+}
+```
+
+
+
+##### Propagación hacia atras 
+
+Los pesos son como los parámetros en una regresión lineal, necesitamos escoger aquellos que vuelven nuestro modelo mejor bajo ciertos criterios. 
+Por ahora utilizaremos la función de costos cuadrática.
+$$C = \frac{1}{2n}\sum_i (y_i - \hat{y}_i)^2$$
+Podemos minimizar el costo utilizando descenso del gradiente. Vamos a iterar usando la siguiente formula 
+$$W^* = W - a \nabla C(W)$$
+donde $W$ es la matriz de pesos actualmente, $\nabla C(W)$ es el gradiente de la función de costos con respecto a W y a es la tasa de aprendizaje.
+Usando la regla de la cadena podemos obtener $\nabla C(W)$
+$$\frac{\partial C}{\partial W_2} = \frac{\partial C}{\partial \hat{y}}\frac{\partial \hat{y}}{\partial W_2}$$
+donde 
+$$\frac{\partial C}{\partial \hat{y}} = -(y - \hat{y}) = (\hat{y}-y)$$
+$$\frac{\partial \hat{y}}{\partial W_2} = H^T\sigma(HW_2)(1-\sigma(HW_2) = H^T\hat{y}(1-\hat{y})$$
+Esto implica: 
+$$\frac{\partial C}{\partial W_2} = H^T\hat{y}(1-\hat{y})(\hat{y} - y)$$
+
+En el caso de la matriz entre las dos primeras capas podemos hacer lo mismo 
+$$\frac{\partial C}{\partial W_1} = \frac{\partial C}{\partial \hat{y}}\frac{\partial \hat{y}}{\partial H}\frac{\partial H}{\partial W_1}$$
+$$\frac{\partial \hat{y}}{\partial H} = \sigma'(HW_2)W_2^T = \hat{y}(1 - \hat{y})W_2^T$$
+$$\frac{\partial H}{\partial W_1} = X^T[0 \quad \sigma(XW_1)(1-\sigma(XW_1))]$$
+```{r, eval = TRUE, echo = TRUE}
+backpropagate <- function(x,y,y_hat,w1,w2,h,a){
+  dw2 <- t(cbind(1,h)) %*% (y_hat*(1 - y_hat)*(y_hat - y))
+  dh <- (y_hat-y) %*% t(w2[-1, drop = FALSE])
+  dw1 <- t(cbind(1,x)) %*% (h*(1-h)*dh)
+  w1 <- w1 - a*dw1
+  w2 <- w2 - a*dw2
+  list(w1 = w1 , w2 = w2)
+}
+```
+
+##### Entrenamiento 
+
+El entrenamiento consiste en inicializar los pesos, usar propagación hacia adelante para obtener los resultados de la capa final. Propagar hacia atrás para obtener los pesos nuevos, repetir esto en numerosas ocasiones hasta que estemos contentos con el desempeño de la red. 
+
+```{r, eval = TRUE, echo = TRUE}
+learn <- function(x, y , hidden = 5, a = 0.01, iterations = 10000){
+  d <- ncol(x) + 1
+  w1 <- matrix(rnorm(d*hidden),d,hidden)
+  w2 <- as.matrix(rnorm(hidden+1))
+  for (i in 1:iterations){
+    ff <- feedforward(x,w1,w2)
+    bp <- backpropagate(x,y,
+                        y_hat = ff$output,
+                        w1,w2,
+                        h = ff$h, a = a)
+    w1 <- bp$w1
+    w2 <- bp$w2
+  }
+  list(output = ff$output , w1 = w1, w2 = w2)
+}
+```
+
+Entrenemos la red usando los datos de los billetes: 
+
+```{r, eval = TRUE, echo = TRUE}
+x <- data.matrix(bank[,c("variance","entropy")])
+y <- as.numeric(bank$classification)
+nnet5 <- learn(x,y, hidden = 5, iterations = 10000)
+mean((nnet5$output > .5) == y) 
+```
+
+
+
+Gráficamente podemos ver las fronteras de decisión que esta generando nuestra red. 
+
+
+```{r, eval = TRUE, echo = FALSE}
+grid <- expand.grid(x1 = seq(min(bank$variance) - 1,
+                             max(bank$variance) + 1,
+                             by = .25),
+                    x2 = seq(min(bank$entropy) - 1,
+                             max(bank$entropy) + 1,
+                             by = .25))
+ff_grid <- feedforward(x = data.matrix(grid[, c('x1', 'x2')]),
+                       w1 = nnet5$w1,
+                       w2 = nnet5$w2)
+#grid$class <- factor((ff_grid$output > .5) * 1,
+                     #labels = c("verdadero","falso"))
+grid$class <- factor((ff_grid$output > .5)*1)
+grid <- grid %>% mutate(class = ifelse(class ==1 , "falso","verdadero"))
+bank$x1 <- bank$variance
+bank$x2 <- bank$entropy
+bank <- bank %>% mutate(class = ifelse(classification == 1, "falso","verdadero"))
+ggplot(bank) + aes(x1, x2, colour = class) +
+  geom_point(data = grid, size = .5) +
+  geom_point() +
+  labs(x = expression(x[1]), y = expression(x[2]))
+```
+
+
+##### Cómo mejorar el desmpeño de nuestra red? 
+
+* Sin cambiar el código que tenemos (fácil): cambiar la tase de aprendizaje, agregar iteraciones, agregar nodos a nuestra red
+* Cambiando el código un poco (no tan difícil): cambiar la función de costos, cambiar la función de activación, agregar regularización a la función de costos 
+* Cambiando más el código (un poco mas difiícil): agregar mas capas a la red (deep learning), incorporar la minimización del costo al proceso de aprendizaje, actualizar el gradient descent por stochastic gradient descent. 
+

@@ -373,12 +373,12 @@ feedforward <- function(x,w1,w2){
 
 
 ## Propagación hacia atras 
- $$C = \frac{1}{n} \sum_n (\hat{y} - y)^2$$
+ $$C = \frac{1}{2n} \sum_n (y - \hat{y})^2$$
 Gradient descent implica que 
 $$W^* = W -a\nabla C(W)$$
 $$\frac{\partial C}{\partial W_2} = \frac{\partial C}{\partial \hat{y}}\frac{\partial \hat{y}}{\partial W_2}$$
 Donde: 
-    $$\frac{\partial C}{\partial \hat{y}} = 2(\hat{y} - y)$$
+    $$\frac{\partial C}{\partial \hat{y}} = (y - \hat{y})$$
     $$\frac{\partial \hat{y}}{\partial W_2} = H^T\sigma(HW_2)(1-\sigma(HW_2) = H^T\hat{y}(1-\hat{y})$$
 Nota:  $$\sigma'(z) = \sigma(z)(1-\sigma(z))$$
 
