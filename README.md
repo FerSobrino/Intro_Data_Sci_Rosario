@@ -21,3 +21,9 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 [Red Neuronal desde cero (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/RedBasica.html)
 
 ## 3. Introducción PLM
+
+[Text as data(slides)](/Redes_Neuronales/TextData.pdf)
+
+[Word Vectors(slides)](/Redes_Neuronales/TextAsData2.pdf)
+
+[Intro to text as data (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/IntroTD.html)
