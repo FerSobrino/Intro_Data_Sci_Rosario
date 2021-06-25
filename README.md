@@ -22,8 +22,8 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 ## 3. Introducción PLM
 
-[Text as data(slides)](/Redes_Neuronales/TextData.pdf)
+[Text as data(slides)](/Text_Data/TextData.pdf)
 
-[Word Vectors(slides)](/Redes_Neuronales/TextAsData2.pdf)
+[Word Vectors(slides)](/Text_Data/TextAsData2.pdf)
 
-[Intro to text as data (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Redes_Neuronales/IntroTD.html)
+[Intro to text as data (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Text_Data/IntroTD.html)
