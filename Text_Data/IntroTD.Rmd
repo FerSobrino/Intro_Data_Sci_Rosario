@@ -1,0 +1,300 @@
+---
+title: "Introducción Texto como Datos"
+output: rmarkdown::html_vignette
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+
+#### Pre-requisitos:
+Vamos a necesitar los siguientes paquetes de R
+```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dslabs)
+library(textclean)
+library(tm)
+library(wordcloud)
+```
+
+#### Proceso de análisis de texto 
+1. seleccionar textos: corpus 
+1. definir los documentos: la unidad de análisis (tweets, oraciones, párrafos, guiones)
+1. definir las características: tokens, frases, segmentos, lenguaje, etc
+1. convertir estas características a vectores 
+1. proceso cuantitativo o estadístico para extraer información de las catacterísticas
+1. resumen, datos nuevos, etc 
+
+En este documento nos enfocaremos en el punto 3 y como limpiar estas características antes de convertirlas a vectores. En particular llevaremos a cabo un topic classification de tweets de Trump. Nos interesa saber de que esta hablando Trump en Twitter. Con esto en mente escogeremos las características y la forma de pre procesar los tweets. 
+En este caso en particular definimos como el corpus todos los tweets de Trump entre 2009 y 2017 (antes de que fuera presidente). Los documentos serán cada uno de los tweets. 
+
+
+#### Cargar y explorar los datos 
+
+La libraria `dsblabs` cuenta con una base de datos pre cargada con todos los tweets de la cuenta de Donald Trump entre 2009 y 2017. Para poder utilizarlos solo necesitamos cargar el paquete.  
+
+```{r, eval = TRUE, echo = TRUE}
+dim(trump_tweets)
+names(trump_tweets)
+```
+La base cuenta con 20761 tweets distintos y 8 variables. Las variables describen características básicas de los tweets como cuando fueron creados, que tanto interactuo la gente con ellos (favs,retweets, etc). 
+
+Exploremos un poco mas como se ven las primeras 3 observaciones de esta base 
+```{r, eval = TRUE, echo = TRUE}
+trump_tweets %>% head(3)
+```
+
+Visualizar los tweets nos va a ayudar a definir las características, en el caso en particular de topic análisis escogeremos como features las palabras lematizadas, excluyendo stop words. 
+
+
+#### Pre procesamiento de los tweets 
+
+Vamos a empezar a limpiar nuestros tweets. Lo primero que haremos será eliminar puntuación, urls, hashtags, etc. Para poder hacer esto vamos a usar las expresiones regulares (regex)
+
+
+##### Regex 
+Una expresión regular es un patrón que describe un conjunto específico de cadenas de texto que poseen una estructura en común, son usadas para buscar coincidencias o para remplazarlas. En R podemos usar la libraría `stringr`, este paquete esta incluido en la librería que cargamos al principio conocida como `tidyverse`. `gsub()` es una función en base R (no necesita ningún paquete para usarla) en general las funciones dentro de `stringr` van a ser un poco más rápidas. 
+
+Veamos algunos ejemplos de lo que podemos hacer con `stringr`
+```{r, eval = TRUE, echo = TRUE}
+# Extaer una palabra especīfica de un tweet
+str_extract(trump_tweets$text[1], "happy")
+str_extract(trump_tweets$text[1], "sad")
+# Si queremos reemplazar todas las a minusculas a mayusculas 
+str_replace_all(trump_tweets$text[1], "a","A")
+# equivalente a usar gsub 
+gsub("a","A",trump_tweets$text[1])
+## reemplazar todos los números por X's
+str_replace_all(trump_tweets$text[1],"[:digit:]","X")
+## reemplazar todas las mayusculas por un 1 
+str_replace_all(trump_tweets$text[1],"[:upper:]","1")
+```
+
+Las expresiones regulares nos van a ayudar a remover cosas como los urls, los hashtags y la puntuación. 
+
+Expresión regular para quitar urls
+```{r, eval = TRUE, echo = TRUE}
+str_replace_all(trump_tweets$text[2],"http[[:alnum:][:punct:]]*"," ")
+#funciona igual con gsub
+gsub("http[[:alnum:][:punct:]]*"," ",trump_tweets$text[2])
+```
+
+Expresiones regulares para remover usernames y hashtags. 
+
+```{r, eval = TRUE, echo = TRUE}
+# Quitar usernames
+trump_tweets$text[500]
+str_replace_all(trump_tweets$text[500],"@[[:alnum:][:punct:]]*"," ")
+#Quitar hashtags 
+trump_tweets$text[600]
+str_replace_all(trump_tweets$text[600],"#[[:alnum:][:punct:]]*"," ")
+```
+
+
+##### Normalización del texto 
+
+
+###### Transformar símbolos a palabras 
+
+Los tweets están en ingles así que antes de eliminar toda la puntuación es conveniente hacernos cargo de palabras compuestas, emojis, emoticons, etc.  La librería [textclean](https://cran.r-project.org/web/packages/textclean/readme/README.html) ofrece funciones útiles para limpiar texto en ingles que usaremos aquí. En particular nos van a ayudar a sustituir abreviaciones, contracciones, emojis, etc. Existen muchos paquetes que hacen esto en ingles, en español no tanto así que hay que escribir muchas de estas cosas a mano. 
+
+```{r, eval = TRUE, echo = TRUE}
+x <- "Check it out what's going on."
+replace_contraction(x)
+y <- "I owe $41 for food"
+replace_symbol(y)
+z <- "My  heart 💔 #FreeBritney" 
+replace_emoji(z)
+w <- "Hi :)"
+replace_emoticon(w)
+```
+
+
+###### Minúsculas 
+
+Convertir el texto a minúsculas 
+```{r, eval = TRUE, echo = TRUE}
+trump_tweets$text[1]
+tolower(trump_tweets$text[1])
+```
+
+###### Puntuación
+
+Remover la puntuación de los tweets usamos otra expresión regular 
+```{r, eval = TRUE, echo = TRUE}
+trump_tweets$text[1]
+str_replace_all(trump_tweets$text[1],"[:punct:]"," ")
+```
+
+###### Stop Words 
+
+Antes de convertir en tokens nuestros tweets removemos las stop words, en este caso en particular es una buena idea porque queremos capturar los tópicos de los tweets. En casos como análisis de sentimiento no siempre es una buena idea quitar estas palabras. 
+Para extraerlas utilizaremos la librería `tm`
+
+```{r, eval = TRUE, echo = TRUE}
+trump_tweets$text[1]
+r_stops <- removeWords(trump_tweets$text[1], stopwords("en"))
+r_stops
+```
+
+###### Stemming 
+Método para reducir una palabra, solo quita el final o el inicio de las palabras por lo que en muchos casos no pueden ser interpretadas como palabras. Sigue un algoritmo definido para reducir las palabras así que en general es más rápido que otras opciones. Uno de los métodos más comunes es el algoritmo de Porter que quita el final de las palabras en ingles. Existen varias librerías en R que llevan a cabo esta operación. Por ahora usaremos la función `stemDocument` de `tm`
+
+```{r, eval = TRUE, echo = TRUE}
+stemDocument(r_stops)
+```
+
+###### Lematización 
+Es otro método para reducir palabras, en lugar de solo cortar la palabra extrae la palabra raíz. A comparación del stemming siempre nos va a regresar palabras que existen y son ortográficamente correctas. Para poder hacer esto busca en diccionarios detallados el lemma asociado a cada una de las palabras por lo que suele ser mucho mas lento que hacer stemming. 
+En este ejemplo usaremos la libraría `textstem` , `tm` también cuanta con un método de lemmatización aplicable a documentos dentro de un corpus. 
+
+```{r, eval = TRUE, echo = TRUE, warning=FALSE, message=FALSE}
+library(textstem)
+vector <- c("run", "ran", "running")
+lemmatize_words(vector)
+```
+
+
+##### Aplicar todos los pasos a los tweets  
+
+1. Limpieza previa: 
+Visualicemos las palabras más frecuentes para saber si hay que eliminar alguna extra:
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+library(qdap)
+frecuentes <- freq_terms(trump_tweets$text,30)
+plot(frecuentes)
+detach("package:qdap", unload=TRUE)
+```
+
+
+Antes de definir nuestro corpus en R vamos a llevar a cabo un poco de limpieza. La siguiente función va a remover los urls, usernames, hashtags, lidear con algunos símbolos como ’ y –. Reemplazar contracciones, símbolos, emojis y emoticonos. Al final pasa todas las palabras a minúscula y quita la puntuación. 
+
+```{r,eval = TRUE, echo = TRUE}
+limpiar<- function(text){
+  text <- str_replace_all(text,"http[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text, "@[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text,"#[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text,"–","-")
+  text <- str_replace_all(text,"’","'")
+  text <- replace_contraction(text)
+  text <- replace_emoji(text)
+  text <- replace_symbol(text)
+  text <- replace_emoticon(text)
+  text <- tolower(text)
+  text <- str_replace_all(text,"[[:punct:]]","")
+  text <- str_replace_all(text, "[^[:alnum:]]", " ")
+  text <- str_replace_all(text, '[[:digit:]]+',"")
+  text <-removeWords(text,stopwords("en"))
+  text <- str_replace_all(text,"trump","")
+  text <- stripWhitespace(text)
+  text <- str_trim(text)
+}
+
+clean_tweets <- trump_tweets %>%
+  mutate(text = limpiar(text))
+head(clean_tweets$text)
+```
+Como estamos usando tweets puede que después de quitar los urls, usernames, etc algunos tweets desaparezcan, vamos a eliminarlos antes de seguir. 
+
+```{r, eval = TRUE, echo = TRUE}
+tweets <- clean_tweets %>% filter(nchar(text) > 1 & !is.na(text)) 
+```
+
+
+2. Construir el corpus
+Un corpus es una colección de documentos, la librería `tm` reconoce el corpus como un tipo de objeto `corpus` distinto a los objetos regulares. 
+`tm` cuenta con dos tipos distintos de corpus, la única diferencia entre ellos es si lo vamos a guardar en el disco duro (corpus permanente, PCorpus) o solo en la RAM (volatil o VCorpus). Para construir un objeto VCorpus R necesita interpretar cada elemento (en nuestro caso cada tweet) como un documento.  La siguiente función va a generar un Source object. 
+
+```{r, eval = TRUE, echo = TRUE}
+tweets_source <- VectorSource(tweets$text)
+```
+
+Ya que tenemos nuestro Source object es muy fácil generar el corpus. La función VCorpus genera una lista de listas. Cada una de las sublistas tiene el contenido del tweet y metadata asociado al tweet como autor, idioma, etc. 
+
+```{r, eval = TRUE, echo = TRUE}
+tweets_corpus <- VCorpus(tweets_source)
+tweets_corpus[[20]]
+tweets_corpus[[20]][1]
+str(tweets_corpus[[20]])
+```
+
+Existe otra opción con la cual podemos incorporar todo lo que sabemos de los tweets a nuestro corpus y esto es usando la función `DataframeSource()`
+```{r, eval = TRUE, echo = TRUE}
+trump <- as.data.frame(tweets)
+#necesitamos este paso extra para que tm lea el documento 
+trump <- trump %>% rename(doc_id = id_str) %>%
+  select(doc_id, text)
+df_source <- DataframeSource(trump)
+#Construir el corpus 
+df_corpus <- VCorpus(df_source)
+df_corpus
+df_corpus[[1]]
+str(df_corpus[[1]])
+```
+
+3. Ya que tenemos nuestro corpus podemos escribir una función para  terminar de limpiar todos los tweets. 
+`tm` cuenta una función `tm_map()`. La funciones `map` son comunes en R y nos ayudan a aplicar la misma función a cada uno de los elementos y nos regresa un vector de la misma longitud que los inputs. Esta función nos va a permitir limpiar todos los documentos juntos sin tener que explícitamente iterar sobre ellos. 
+
+```{r, eval = TRUE, echo = TRUE}
+#Ejemplo general de map: 
+(df <- tibble(
+a = rnorm(3),
+b = rnorm(3),
+c = rnorm(3),
+d = rnorm(3)
+))
+df %>% map_dbl(mean)
+```
+
+
+
+Stemming: 
+
+```{r, eval = TRUE, echo = TRUE}
+clean_corpus <- tm_map(tweets_corpus, stemDocument)
+clean_corpus[[1]]$content
+```
+
+
+Ya con nuestro corpus limpio podemos pasar al siguiente paso que es transformar las características a una matriz de co-ocurrencias 
+
+
+#### Calcular matrices de co-ocurrencias 
+
+#### Term-document matrix 
+Podemos utilizar la función `TermDocumentMatrix` aplicada al corpus limpio. Si no le pasamos ningún parámetro a esta función la matriz va a ser calculada utilizando la frecuencia
+```{r, eval = TRUE, echo = TRUE, warning = TRUE, message = TRUE}
+tweets_tdm <- TermDocumentMatrix(clean_corpus, list(weighting = weightTfIdf,
+                                                    sparse=TRUE))
+tweets_tdm
+```
+
+la sparcity de la matriz es demasiada, vamos a explorar un poco que tan frecuentes aparecen las palabras en esta matriz sumando sobre todos los tweets 
+
+```{r, eval = TRUE, echo = TRUE}
+freq <- rowSums(as.matrix(tweets_tdm))
+freq %>% head(5)
+freq %>% tail(5)
+```
+
+Tenemos 150 palabras que aparecen en al menos $10\%$ de los documentos. 
+La medida de sparsity es $\frac{se}{(nse+se)}$ donde se es sparse entries y nse es non sparse entries. Una sparsity grande quiere decir que las palabras no se repiten seguido entre los diferentes documentos.  
+
+```{r, eval = TRUE, echo = TRUE}
+tweets_tdm<- removeSparseTerms(tweets_tdm, 0.99)
+tweets_tdm
+```
+Podemos ver como se ve nuestra matriz 
+```{r, eval = TRUE, echo =TRUE}
+inspect(tweets_tdm[1:6,1:20])
+```
+
+Por último podemos visualizar las palabras más frecuentes con una nube: 
+```{r, eval = TRUE, echo =TRUE}
+findFreqTerms(tweets_tdm, 100) %>% head(25)
+freq <- data.frame(sort(rowSums(as.matrix(tweets_tdm)), decreasing=TRUE))
+wordcloud(rownames(freq), freq[,1], max.words=50, colors=brewer.pal(1, "Dark2"))
+```
+
+

@@ -133,7 +133,7 @@ Si queremos encontrar cual es el dígito que el modelo predice solo necesitamos 
 ```{r, eval = TRUE, echo = TRUE, message=FALSE, warning=FALSE}
 y_hat <- as.data.frame(y_hat)
 y_hat <- y_hat %>%
-  mutate(digit = max.col(y_hat) - 1)
+  mutate(digit = max.col(y_hat))
 ```
 
 
