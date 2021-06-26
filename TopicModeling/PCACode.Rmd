@@ -1,0 +1,159 @@
+---
+title: "Redución de dimensiones"
+output: html_document
+---
+
+
+### Análisis de Componenets Principales 
+
+En este documento vamos a utilizar PCA para intentar encontrar las variables (no correlacionadas) que más varianza capturen de la term-document matriz. Utilizaremos datos de cocteles y usaremos como variables los ingredientes. 
+
+#### Pre-requisitos:
+```{r, eval = TRUE, echo = TRUE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(tidytext)
+library(tidymodels)
+```
+
+
+
+#### Datos:
+
+Esta base de datos fue extraida de Mr. Boston Bartender's Guide. Cuenta con el nombre, ingredientes, tipo de vaso donde se sirven, etc. 
+```{r, eval = TRUE, echo = TRUE}
+cocktails <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-26/boston_cocktails.csv")
+dim(cocktails)
+names(cocktails)
+cocktails %>% head(10)
+```
+
+Cada fila representa un ingrediente asociado a una bebida en específico.
+```{r, eval = TRUE, echo = TRUE}
+cocktails %>%
+  count(ingredient, sort = TRUE)
+
+cocktails %>% 
+  group_by(measure) %>% 
+  count(measure,sort = TRUE)
+```
+
+Explorando un poco los datos podemos ver que necesitamos limpiarlos un poco, hay algunos ingredientes escritos con mayusculas, algunos tienen caracteres especiales, etc. 
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+limpiar_bebidas <- function(ingrediente,medida){
+  ingrediente <- str_to_lower(ingrediente)
+  ingrediente <- str_replace_all(ingrediente, "-", " ")
+  ingrediente <- str_remove(ingrediente, " liqueur$")
+  ingrediente <- str_remove(ingrediente, " (if desired)$")
+  ingrediente <- str_remove(ingrediente,"fresh")
+  ingrediente <- case_when(
+      str_detect(ingrediente, "bitters") ~ "bitters",
+      str_detect(ingrediente, "lemon") ~ "lemon juice",
+      str_detect(ingrediente, "lime") ~ "lime juice",
+      str_detect(ingrediente, "grapefruit") ~ "grapefruit juice",
+      str_detect(ingrediente, "orange") ~ "orange juice",
+      TRUE ~ ingrediente
+    )
+  ingrediente <- str_trim(ingrediente)
+}
+
+limpiar_medidas <- function(medida){
+  medida <- str_replace(medida," ?1/2",".5")
+  medida <- str_replace(medida, " ?3/4", ".75")
+  medida <- str_replace(medida, " ?1/4", ".25")
+}
+
+cocktails_limpios <- cocktails %>%
+  mutate(ingredient = limpiar_bebidas(ingredient),
+         measure = limpiar_medidas(measure),
+         measure_num = parse_number(measure)) %>%
+  add_count(ingredient) %>%
+  filter(n > 15) %>%
+  select(-n) %>%
+  distinct(row_id, ingredient, .keep_all = TRUE) %>%
+  na.omit()
+
+cocktails_limpios
+```
+
+Para llevar a cabo el análisis de componenetes principales necesitamos que cada uno de los ingredientes sea una columna. 
+
+```{r, eval = TRUE, echo = TRUE}
+cocktails_wide <- cocktails_limpios %>%
+  select(name, category,ingredient,measure_num) %>%
+  pivot_wider(names_from = ingredient, values_from = measure_num, values_fill = 0) %>%
+  janitor::clean_names() %>%
+  na.omit()
+cocktails_wide 
+```
+
+#### PCA
+
+La librería `tidymodels` cuenta con una función que lleva a cabo el análisis de PCA. `tidymodels` es como `tidyverse` un paquete con paquetes dentro, en particular incluye `recipe`. Este paquete esta diseñado para ayudarnos a preprocesar los datos antes de entrenar nuestros modelos. Las `recipes` nos ayudan a transformar variables antes de aplicarlas a nuestros modelos por ejemplo podemos:convertir variables categoricas a dummys, re-escalar los datos, etc. 
+
+La función `recipe` tiene dos argumentos, una formula y una base de datos. Cualquier cosa antes del `~` se va a considerar una variable de salida y todo lo que escribamos después van a ser nuestros inputs. Usamos `(.)` si queremos usar todas las variables.
+
+1. Declaramos nuetsra receta: usar todas las variables de la base de datos `cocktails_wide` como dependientes, normalizar todas las variables y aplicar pca.
+    ```{r, eval = TRUE, echo = TRUE}
+drinks_rec <- recipe(~., data = cocktails_wide) %>%
+  # declaro que name + category van a ser mi unique identifier
+  update_role(name, category, new_role = "id") %>%
+  # normaliza todas las variables para que tengan varianza 1 y media 0 
+  step_normalize(all_predictors()) %>%
+  # PCA 
+  step_pca(all_predictors())
+    ```
+1. Preparamos la receta, es decir corremos nuestro modelo de pca. La función `prep` va a correr el modelo declarado usando la receta
+    ```{r, eval = TRUE, echo = TRUE}
+    drinks_pca <- prep(drinks_rec)
+    drinks_pca
+    ```
+
+Qué hay en el objeto `drinks_pca`
+```{r, eval = TRUE, echo = TRUE}
+summary(drinks_pca)
+```
+
+
+#### Explorar los resultados 
+
+`juice` va a extraer en un data frame los datos obtenidos de nuestro modelo. En este caso vamos a tener una matriz con cada una de las observaciones y los componentes principales asociados a ellas.  
+
+```{r, eval = TRUE, echo = TRUE}
+juice(drinks_pca)
+
+juice(drinks_pca) %>%
+  ggplot(aes(PC1,PC2)) + 
+  geom_point(aes(color = category))
+```
+
+Qué porcentaje de la varianza están capturando cada uno de los componentes? 
+
+```{r, eval = TRUE, echo = TRUE}
+sd <- drinks_pca$steps[[2]]$res$sdev
+percent_variation <- sd^2 / sum(sd^2)
+var_df <- data.frame(PC=paste0("PC",1:length(sd)),
+                     var_explained=percent_variation,
+                     stringsAsFactors = FALSE)
+var_df %>%
+  mutate(PC = fct_inorder(PC)) %>%
+  ggplot(aes(x=PC,y=var_explained))+geom_col(aes(fill = "red")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Qué estan capturando cada uno de los componentes principales? 
+
+```{r, eval = TRUE, echo = TRUE}
+tidy_pca <- tidy(drinks_pca, 2)
+
+tidy_pca %>%
+  filter(component %in% paste0("PC", 1:3)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL)
+```
+
+La gráfica anterior nos ayuda a visualizar que ingredientes estan contribuyendo más a cada uno de los componenetes. Por ejemplo en PC1 vemos que es positivo para syrup pero negativo para azúcar.
+Podemos ver que PC1 captura bebidas con huevo $+$ azúcar $+$ gin vs tequila $+$ limón $+$ syrup. 
+

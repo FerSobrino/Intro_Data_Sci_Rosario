@@ -1,0 +1,236 @@
+---
+title: "Topic Modeling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Topic modeling para identificar los temas de los tweets de Trump 
+
+#### Pre-requisitos:
+Vamos a necesitar los siguientes paquetes de R. `topicmodels` es un paquete que calcula modelos con LDA para datos en formatos `tm`. `ldavis` es un paquete que nos va a ayudar a visualizar e interpretar los resultados. Recuerden instalar los paquetes `install.packages()` si no lo han hecho. 
+```{r, eval = TRUE, echo = TRUE, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(tidytext)
+library(topicmodels)
+library(tm)
+library(LDAvis)
+library(dslabs)
+library(textclean)
+```
+
+
+#### Datos
+
+##### Pre-procesamiento: 
+
+Vamos a usar los datos que limpiamos previamente de los tweets de trump. 
+```{r,eval = TRUE, echo = TRUE}
+limpiar<- function(text){
+  text <- str_replace_all(text,"http[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text, "@[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text,"#[[:alnum:][:punct:]]*","")
+  text <- str_replace_all(text,"–","-")
+  text <- str_replace_all(text,"’","'")
+  text <- replace_contraction(text)
+  text <- replace_emoji(text)
+  text <- replace_emoticon(text)
+  text <- tolower(text)
+  text <- str_replace_all(text,"[[:punct:]]","")
+  text <- str_replace_all(text, "[^[:alnum:]]", " ")
+  text <- str_replace_all(text, '[[:digit:]]+',"")
+  text <-removeWords(text,stopwords("en"))
+  text <- str_replace_all(text,"trump","")
+  text <- stripWhitespace(text)
+  text <- str_trim(text)
+}
+
+clean_tweets <- trump_tweets %>%
+  mutate(text = limpiar(text))
+```
+
+Eliminamos los tweets que quedaron vacios
+```{r, eval = TRUE, echo = TRUE}
+tweets <- clean_tweets %>% filter(nchar(text) > 1 & !is.na(text)) 
+```
+
+
+Exploremos un poco más los datos. Exploremos cuales son las palabras usadas en más tweets
+```{r, eval = TRUE, echo = TRUE}
+tweets %>% 
+     group_by(text) %>% 
+     summarize(n_tweets=n()) %>% 
+     mutate(pct=n_tweets/sum(n_tweets)) %>%
+     arrange(-n_tweets) %>% 
+     top_n(10,n_tweets) 
+```
+
+
+Podemos ver que hay varios tweets que despues de limpiarlos quedaron con solo una palabra como `thanks`. Podemos deshacernos de estos tweets imponiendo un numero de caracteres mínimo para cada tweet limpio. Este paso lo podriamos hacer antes de limpiar pero es menos obvio que quedaran estos tweeets poco útiles. 
+
+```{r, eval = TRUE, echo = TRUE}
+tweets <- tweets %>%
+  mutate(long_tweet = ifelse(nchar(text) > 15, 1, 0))
+```
+
+Veamos cuantos tweets validos nos quedan después de esto: 
+```{r, eval = TRUE, echo = TRUE}
+sum(tweets$long_tweet == 1)
+```
+
+Volvemos a ver cuales tweets se repiten más si ignoramos los que son muy pequeños
+```{r, eval = TRUE, echo = TRUE}
+tweets %>% 
+     filter(long_tweet == 1) %>%
+     group_by(text) %>% 
+     summarize(n_tweets=n()) %>% 
+     mutate(pct=n_tweets/sum(n_tweets)) %>%
+     arrange(-n_tweets) %>% 
+     top_n(10,n_tweets) 
+```
+
+Nos deshacemos de los tweets muy cortos 
+```{r, eval = TRUE, echo = TRUE}
+tweets <- tweets %>% 
+  filter(long_tweet == 1)
+```
+
+##### Tokenización:
+
+Vamos a utilizar la libreria `tidytext` en vez de usar `tm` directamenete. `tidytext` nos va a dar un poco más de flexibilidad para seguir limpiando un poco más nuestros datos antes de correr nuestro LDA. 
+
+```{r, eval = TRUE, echo = TRUE}
+tokens_tweets <- tweets %>%
+  select(id_str,text) %>%
+  unnest_tokens(word,text)
+```
+
+Cuantos tokens hay por tweet? 
+
+```{r, eval = TRUE, echo = TRUE}
+tokens_tweets %>% 
+  group_by(id_str) %>%
+  summarise(n_tokens = n()) %>%
+  group_by(n_tokens) %>%
+  summarise(n_tweets = n()) %>%
+  ggplot(aes(n_tokens,n_tweets)) + 
+  geom_bar(stat = 'identity',fill = 'red')
+```
+
+La mayoria de los tweets tienen menos de 20 tokens lo cual tiene sentido ya que tenian cuando mucho 140 caractéres. 
+
+Filtrar tokens: podemos deshacernos de tokens que son muy infrecuentes o que son poco informativos. 
+```{r, eval = TRUE, echo = TRUE}
+tokens_tweets %>% 
+  group_by(word) %>% 
+  summarize(token_freq=n()) %>% 
+  arrange(desc(token_freq)) %>%
+  head()
+```
+
+Deshacernos de tokens 
+```{r, eval = TRUE, echo = TRUE}
+words_remove <- c("e","will","amp","c","d","f","b")
+tokens_tweets <- tokens_tweets  %>%
+  filter(!word %in% words_remove)
+```
+
+Vamos a revisar la distribución de frecuencia de las palabras 
+```{r, eval = TRUE, echo = TRUE}
+tokens_tweets %>% 
+  group_by(word) %>% 
+  summarize(token_freq=n()) %>% 
+  group_by(token_freq) %>%
+  summarise(count = n()) %>%
+  mutate(prop = count/sum(count))
+```
+Vemos que el $47\%$ de los tokens aparecen solo una vez, nos vamos a deshacer de estos tokens infrecuentes y nos vamos a enfocar en los que aparecen al menos dos veces. Si los dejamos nuestro topic model será distinto. Cuando entrenemos nuestro topic modeling podemos comparar distintos modelos dejando estas palabras o quitando mas. 
+
+
+##### Matriz DTM (document-term)
+
+```{r, eval = TRUE, echo = TRUE}
+tokens_tweets_small <- tokens_tweets %>%
+  group_by(word) %>%
+  mutate(token_freq = n()) %>%
+  filter(token_freq >1)
+# Crear matriz 
+dtm <- tokens_tweets_small %>% 
+  cast_dtm(document = id_str, term = word, value = token_freq)
+```
+
+### Topic Model 
+
+A lo largo de este documento hemos decidido varias cosas que van a afectar el modelo. Decidimos que quitar de los tweets, quitar tweets con muy pocos caracteres, la frecuencia mínima de los tokens, etc. 
+
+LDA tiene varios parámetros que van a afectar el resultado del modelo. El más importante es el número de temas k. También podemos decidir el tipo de optimización, etc. 
+
+```{r, eval = TRUE, echo = TRUE}
+lda_fit <- LDA(dtm, k = 5)
+```
+
+Qué hay en el objeto `lda_fit`?
+```{r, eval = TRUE, echo = TRUE}
+lda_fit
+summary(lda_fit)
+```
+
+Este objeto tienen dos matrices:
+* la matriz $\phi$ que contiene la distribución de los tokens en los temas 
+* la matriz $\theta$ la distribución de los documentos en los temas 
+
+Vamos a explorar estas matrices: 
+
+```{r, eval = TRUE, echo = TRUE}
+phi <- posterior(lda_fit)$terms %>% as.matrix
+dim(phi)
+phi[,1:8] %>% as_tibble() 
+theta <- posterior(lda_fit)$topics %>% as.matrix
+dim(theta)
+theta[1:8,] %>% as_tibble() 
+```
+
+
+Cuáles son los tokens más importantes por tema? 
+
+```{r, eval = TRUE, echo = TRUE}
+topics <- tidy(lda_fit)
+# Seleccionamos 10 tokens por tema (los que son más probables)
+plot1 <- topics %>%
+  mutate(topic = as.factor(paste0('Topic',topic))) %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  arrange(topic, -beta)
+#plot highest probability terms per topic
+names <- levels(unique(plot1$topic))
+colors <- RColorBrewer::brewer.pal(n=length(names),name="Set2")
+
+# grafica por tema 
+plist <- list()
+
+for (i in 1:length(names)) {
+  d <- subset(plot1,topic == names[i])[1:10,]
+  d$term <- factor(d$term, levels=d[order(d$beta),]$term)
+  
+  p1 <- ggplot(d, aes(x = term, y = beta, width=0.75)) + 
+  labs(y = NULL, x = NULL, fill = NULL) +
+  geom_bar(stat = "identity",fill=colors[i]) +
+  facet_wrap(~topic) +
+  coord_flip() +
+  guides(fill=FALSE) +
+  theme_bw() + theme(strip.background  = element_blank(),
+                     panel.grid.major = element_line(colour = "grey80"),
+                     panel.border = element_blank(),
+                     axis.ticks = element_line(size = 0),
+                     panel.grid.minor.y = element_blank(),
+                     panel.grid.major.y = element_blank() ) +
+  theme(legend.position="bottom") 
+
+  plist[[names[i]]] = p1
+}
+library(gridExtra)
+do.call("grid.arrange", c(plist, ncol=3))
+```
+
