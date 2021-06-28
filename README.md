@@ -36,4 +36,23 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 [PCA (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/TopicModeling/PCACode.html)
 
+## 5. Web Scraping 
+
+[Data Scraping (slides)](/WebScraping/WebScraping.pdf)
+
+[Basic Data Scarping (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/WebScraping/DataScraping1.html)
+
+[Twitter (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/WebScraping/Tweets.html)
+
+## 5. Language Models
+
+[Language models (slides)](/LanguageModels/LanguageModels.pdf)
+
+## Datos para el examen
+
+[Datos trip advisor zip](/DatosExamen/Datos_trips.zip)
+
+
+
+
 
