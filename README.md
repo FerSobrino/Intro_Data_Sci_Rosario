@@ -27,3 +27,13 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 [Word Vectors(slides)](/Text_Data/TextAsData2.pdf)
 
 [Intro to text as data (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/Text_Data/IntroTD.html)
+
+## 4. Unsupervised Learning 
+
+[Unsupervised Learning (slides)](/TopicModeling/Topics.pdf)
+
+[Topic Modeling (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/TopicModeling/TopicModeling.html)
+
+[PCA (html)](https://htmlpreview.github.io/?https://github.com/FerSobrino/Intro_Data_Sci_Rosario/blob/main/TopicModeling/PCACode.html)
+
+
