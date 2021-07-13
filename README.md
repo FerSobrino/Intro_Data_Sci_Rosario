@@ -52,7 +52,7 @@ Este repositorio contiene los materiales para la segunda parte del curso Introdu
 
 [Datos trip advisor zip](/DatosExamen/Datos_trips.zip)
 
-
+[Examen pdf](/DatosExamen/examen_final.pdf)
 
 
 
